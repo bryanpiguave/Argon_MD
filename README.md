@@ -29,11 +29,10 @@ This project provides the following functionalities:
 * LAMMPS input scripts for simulating Argon at different densities and temperatures using the Lennard-Jones potential.
 * Python scripts to:
     * Parse LAMMPS dump files and calculate the radial distribution function (g(r)).
-    * Plot the calculated g(r) for different densities at a fixed temperature.
+    * Plot the calculated g(r)  at a fixed temperature and fixed density.
     * Compare the calculated g(r) with the output from LAMMPS' built-in RDF computation.
     * Analyze LAMMPS output to calculate the mean squared displacement (MSD) of selected atoms as a function of time.
     * Calculate the diffusion constant from the linear regime of the MSD plot.
-* Demonstration of using LAMMPS commands for calculating g(r) and MSD.
 * Flexibility to choose different temperatures and densities for analysis.
 
 ## Getting Started
@@ -58,7 +57,7 @@ The project is structured into three main tasks, each with corresponding LAMMPS 
 
 ### Calculating Radial Distribution Function (g(r))
 
-1.  **Run the LAMMPS simulation:** Execute the `in.argon.gof` script using LAMMPS from your terminal:
+1.  **Run the LAMMPS simulation:** Execute the `in.argon1` script using LAMMPS from your terminal:
     ```bash
     lmp < in.argon1
     ```

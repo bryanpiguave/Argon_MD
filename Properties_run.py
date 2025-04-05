@@ -11,7 +11,7 @@ parser.add_argument('--output_dir', type=str, default='.', help='Directory to sa
 args = parser.parse_args()
 # Read file
 
-with open(FILENAME, 'r') as f:
+with open(args.filename, 'r') as f:
     data = f.readlines()
 
 if os.path.exists(args.output_dir) == False:
@@ -78,8 +78,8 @@ def Plotting_variable(dataframes, variable_name, keyword, output_dir):
 
             # Calculate moving average
             moving_avg = df[variable_name].rolling(window=window_size, min_periods=1).mean()
-            plt.plot(df['Step'], df[variable_name], color='blue', alpha=0.5)
-            plt.plot(df['Step'], moving_avg,  color='blue')
+            plt.plot(df['Step'], df[variable_name], color='blue', alpha=0.8)
+            
 
         except KeyError:
             print(f"Warning: 'Step' or variable_name not found in {key}. Skipping.")
@@ -87,8 +87,8 @@ def Plotting_variable(dataframes, variable_name, keyword, output_dir):
     plt.xlabel('Step',fontdict=axis_fontdict)
     plt.ylabel(f'{keyword}',fontdict=axis_fontdict)
     plt.title(f'{keyword} vs Step',fontsize=24, fontweight='bold',color='darkblue')
-    plt.axvline(x=10000,label='Equilibration NVE',color='black',linestyle='--',linewidth=2)
-    plt.axvline(x=20000,label='Production Run',color='green',linestyle='--',linewidth=2)
+    plt.axvline(x=200000,label='Equilibration NVE',color='black',linestyle='--',linewidth=2)
+    plt.axvline(x=250000,label='Production Run',color='green',linestyle='--',linewidth=2)
     plt.legend(fontsize=16,loc='lower right')
     plt.xticks(fontsize=16)
     plt.yticks(fontsize=16)

@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import argparse
 import os 
+from plot_aesthetics import axis_fontdict
 FILENAME = 'out.argon1'  # Default filename
 
 parser = argparse.ArgumentParser(description='Process LAMMPS output data.')
@@ -61,12 +62,6 @@ else:
 
 
 def Plotting_variable(dataframes, variable_name, keyword, output_dir): 
-    axis_fontdict = {
-        'family': 'sans-serif',  # Or any other font family
-        'color':  'darkblue',
-        'weight': 'bold',
-        'size': 18,
-    }
     # Plotting the data
     # Plotf {keyword} vs Step for each DataFrame with moving average
     plt.figure(figsize=(10, 6))

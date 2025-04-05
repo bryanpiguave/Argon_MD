@@ -6,12 +6,7 @@ from scipy.spatial.distance import pdist
 from collections import deque
 import pandas as pd
 
-axis_fontdict = {
-    'family': 'sans-serif',  # Or any other font family
-    'color':  'darkblue',
-    'weight': 'bold',
-    'size': 18,
-}
+from plot_aesthetics import axis_fontdict
 
 
 FILENAME = 'argon1.xyz'
@@ -19,14 +14,14 @@ LAMMPS_RDF = '/home/bryan/Molecular_Dynamics/Project2/argon_rdf.dat'
 parser = argparse.ArgumentParser(description='Compute and plot RDF from trajectory file.')
 parser.add_argument('--filename', type=str, help='Path to the trajectory file', default=FILENAME)
 parser.add_argument('--last_n', type=int, default=1, help='Number of last snapshots to keep')
-parser.add_argument('--resolution', type=int, default=600, help='Number of points in the final RDF')
+parser.add_argument('--resolution', type=int, default=1000, help='Number of points in the final RDF')
 parser.add_argument('--box_size', nargs=3, type=float, default=(5.39, 5.39, 5.39), help='Box size (x, y, z)')
 parser.add_argument('--output_dir', type=str, default='.', help='Directory to save the plots')
 parser.add_argument('--lammps_rdf', type=str, default=LAMMPS_RDF, help='Path to LAMMPS RDF file for comparison')
 args = parser.parse_args()
 
 class Trajectory:
-    def __init__(self, filename, last_n=10, resolution=500):
+    def __init__(self, filename, last_n=20, resolution=700):
         with open(filename, 'r') as f:
             data = f.readlines()
         self.n_atoms = int(data[0].split()[0])
@@ -57,38 +52,34 @@ class Trajectory:
 
     def compute_rdf(self, box_size=None):
         box_size = np.array(box_size)
-        r_cutoff = min(box_size) / 2.0
-        
+        r_cutoff = 8 
         dr = r_cutoff / self.resolution
         hist = np.zeros(self.resolution)
         
-        # Precompute shell volumes and radii
-        r = np.linspace(dr/2, r_cutoff-dr/2, self.resolution)
-        shell_vol = 4 * np.pi * r**2 * dr
+        avg_density = self.n_atoms / np.prod(box_size)
         
-        if box_size is None:
-            # For non-periodic systems, compute density based on the actual volume
-            # (assuming coordinates are in a box of size max_coord - min_coord)
-            min_coords = np.min(self.coordinates, axis=(0, 1))
-            max_coords = np.max(self.coordinates, axis=(0, 1))
-            volume = np.prod(max_coords - min_coords)
-            avg_density = self.n_atoms / volume
-        else:
-            avg_density = self.n_atoms / np.prod(box_size)
-        
-        for step in range(self.n_steps):
-            if box_size is None:
-                dists = pdist(self.coordinates[step])
-            else:
-                dists = pdist(self.coordinates[step], 
-                            lambda u, v: self.compute_distance(u, v, box_size))
+        for i in tqdm(range(self.n_steps), desc="Computing RDF", unit="step"):
+            snapshot = self.coordinates[i]
+            # Calculate pairwise distances
+            dists = pdist(snapshot, metric='euclidean')
+            # Bin the distances
             hist += np.histogram(dists, bins=self.resolution, range=(0, r_cutoff))[0]
         
-        norm = shell_vol * avg_density * self.n_steps * self.n_atoms
-        g_of_r = hist / norm
+        # Normalize the histogram to get g(r)
+        # Volume of each shell
+        shell_volume = 4.0 / 3.0 * np.pi * ((np.arange(1, self.resolution + 1) * dr)**3 - ((np.arange(self.resolution) * dr)**3))
+        # Correct for the volume of the shell
+        shell_volume = np.where(shell_volume > 0, shell_volume, 1)
+        # Normalize by the average density and the volume of the shell
+        hist = hist / (self.n_steps*shell_volume )
+        # Moving average
+        hist = np.convolve(hist, np.ones(25)/25, mode='same')
         
-        self.radii = r
-        self.g_of_r = g_of_r
+        
+        # Normalize by the number of atoms in the shell
+        self.radii = np.arange(0, r_cutoff, dr)
+        self.g_of_r = hist
+
 
     def plot_rdf(self, filename=""):
         plt.figure(figsize=(10, 6))
@@ -101,21 +92,19 @@ class Trajectory:
             plt.savefig(filename, dpi=300, bbox_inches='tight')
 
 def main():
-
     trajectory = Trajectory(args.filename, args.last_n, args.resolution)
     print(f"Loaded {trajectory.n_steps} steps with {trajectory.n_atoms} atoms each.")
     print("Number of total steps:", trajectory.n_steps_total)
+    print(trajectory.coordinates.shape)
+    
     trajectory.compute_rdf(args.box_size)
     trajectory.plot_rdf(f"{args.output_dir}/rdf_plot.png")
 
     if args.lammps_rdf:
         with open(args.lammps_rdf, 'r') as f:
             lines = f.readlines()
-
         # Skip the first 4 lines of the LAMMPS RDF file
-        lines = lines[4:]
-        
-        
+        lines = lines[4:]    
        # Read the LAMMPS RDF file in chunks
         with open(args.lammps_rdf, 'r') as f:
             lines = f.readlines()
@@ -138,7 +127,7 @@ def main():
         avg_df['g_r'] = avg_df['g_r'].astype(float)
         avg_df['g_r_err'] = avg_df['g_r_err'].astype(float)
         # Moving average
-        window_size = 25
+        window_size = 10
         avg_df['g_r'] = avg_df['g_r'].rolling(window=window_size, min_periods=1).mean()
         avg_df['g_r_err'] = avg_df['g_r_err'].rolling(window=window_size, min_periods=1).mean()
 
@@ -146,6 +135,7 @@ def main():
         plt.figure(figsize=(10, 6))
         # Plot the average g(r) 
         plt.plot(avg_df['r'], avg_df['g_r'], linewidth=2, label='LAMMPS RDF', color='darkblue')
+        plt.plot(trajectory.radii, trajectory.g_of_r, linewidth=2, label='Computed RDF', color='orange')
         plt.xlabel('r (Å)', fontdict=axis_fontdict)
         plt.ylabel('g(r)', fontdict=axis_fontdict)
         plt.xticks(fontsize=16)

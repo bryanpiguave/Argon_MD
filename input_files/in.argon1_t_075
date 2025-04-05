@@ -6,7 +6,7 @@ atom_style		atomic
 boundary			p p p
 
 # system setup
-lattice			fcc 5.39
+lattice			fcc 6.433
 region			box block 0 4 0 4 0 4
 create_box		1 box
 create_atoms	1 box
@@ -17,33 +17,34 @@ pair_style		lj/cut 8.0
 pair_coeff		1 1 0.010324 3.405
 
 # initialization
-velocity			all create 0.75 152586
-timestep			0.002
+velocity			all create 80 152586
+timestep			0.00005
 
 # neighorlist 
 neighbor 0.3 bin
 neigh_modify	delay 0 every 5 check no
 
 # log output frequency
-thermo			10
+thermo			100
 
 # trajectory output
-dump 1 all xyz 100 argon1_t_075.xyz
+dump 1 all xyz 700 argon1_t_075.xyz
 #dump_modify 1 unwrap yes
 
 # ------ Equilibration and thermalisation ------ 
 
-fix				NVT all nvt temp 0.75 0.75 0.010
-run				10000
+fix				NVT all nvt temp 89.00 89.85 0.010
+run				200000
 unfix		  NVT 
 
 # ------ Equilibration in nve ------ 
 
 fix				NVE all nve
-run				1000 
-
+run				50000 
 # ------ Production in nve ------ 
-run       10000
+run       70000
 
 
-compute myRDF all rdf 100
+compute myRDF all rdf 1000
+fix RDF all ave/time 10 10 100 c_myRDF[*] file argon_rdf.dat mode vector
+run 700

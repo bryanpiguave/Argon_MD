@@ -5,19 +5,28 @@ from tqdm import tqdm  # For progress bars
 from scipy.spatial.distance import pdist
 from collections import deque
 import pandas as pd
+
+axis_fontdict = {
+    'family': 'sans-serif',  # Or any other font family
+    'color':  'darkblue',
+    'weight': 'bold',
+    'size': 18,
+}
+
+
 FILENAME = 'argon1.xyz'
 LAMMPS_RDF = '/home/bryan/Molecular_Dynamics/Project2/argon_rdf.dat'
 parser = argparse.ArgumentParser(description='Compute and plot RDF from trajectory file.')
 parser.add_argument('--filename', type=str, help='Path to the trajectory file', default=FILENAME)
 parser.add_argument('--last_n', type=int, default=1, help='Number of last snapshots to keep')
-parser.add_argument('--resolution', type=int, default=400, help='Number of points in the final RDF')
+parser.add_argument('--resolution', type=int, default=600, help='Number of points in the final RDF')
 parser.add_argument('--box_size', nargs=3, type=float, default=(5.39, 5.39, 5.39), help='Box size (x, y, z)')
 parser.add_argument('--output_dir', type=str, default='.', help='Directory to save the plots')
 parser.add_argument('--lammps_rdf', type=str, default=LAMMPS_RDF, help='Path to LAMMPS RDF file for comparison')
 args = parser.parse_args()
 
 class Trajectory:
-    def __init__(self, filename, last_n=10, resolution=400):
+    def __init__(self, filename, last_n=10, resolution=500):
         with open(filename, 'r') as f:
             data = f.readlines()
         self.n_atoms = int(data[0].split()[0])
@@ -100,54 +109,56 @@ def main():
     trajectory.plot_rdf(f"{args.output_dir}/rdf_plot.png")
 
     if args.lammps_rdf:
-        # with open(args.lammps_rdf, 'r') as f:
-        #     lines = f.readlines()
+        with open(args.lammps_rdf, 'r') as f:
+            lines = f.readlines()
 
-        # # Skip the first 4 lines of the LAMMPS RDF file
-        # lines = lines[4:]
-        # chunk_size = 500
-        # list_of_dataframes = []
+        # Skip the first 4 lines of the LAMMPS RDF file
+        lines = lines[4:]
         
-        # # Skip a line  for every 300 lines collected
-        # counter = 0
-        # for i in tqdm(range(0, len(lines)), desc="Processing LAMMPS RDF file"):
-        #     if counter % chunk_size == 0:
-        #         chunk = lines[i:i+chunk_size]
-        #         # Convert the chunk to a DataFrame
-        #         df = pd.DataFrame([line.split() for line in chunk])
-        #         list_of_dataframes.append(df)
-        #         # Skip the next line
-        #         line = lines.readline()
-                
-        #     counter += 1
-        # # for each dataframe get 
-            
-
-        # Load LAMMPS RDF data for comparison
-        df = pd.read_csv(args.lammps_rdf,
-                 skiprows=4,          # Skip 4 header lines
-                 delim_whitespace=True, 
-                 header=None)
         
-        # Columns: Row, c_myRDF[1], c_myRDF[2], c_myRDF[3]
-        r = df[1].values   # Distance (r)
-        g_r = df[2].values # RDF (g(r))
+       # Read the LAMMPS RDF file in chunks
+        with open(args.lammps_rdf, 'r') as f:
+            lines = f.readlines()
+            lines = lines[4:]  # Skip the first 4 lines
+            df = pd.DataFrame(columns=['step','r', 'g_r', 'g_r_err'])
+            df = pd.read_csv(args.lammps_rdf, delim_whitespace=True, header=None, names=['step','r', 'g_r', 'g_r_err'], skiprows=4)
+            # Convert the columns to numeric, forcing errors to NaN
+            df['step'] = pd.to_numeric(df['step'], errors='coerce')
+            df['r'] = pd.to_numeric(df['r'], errors='coerce')
+            df['g_r'] = pd.to_numeric(df['g_r'], errors='coerce')   
+            df['g_r_err'] = pd.to_numeric(df['g_r_err'], errors='coerce')
+        #Drop where step is 320200
+        print("Dropping step 320200 from LAMMPS RDF data")
+        df = df.drop(df[df['r'] == args.resolution].index)
+        # Group by 'r' and calculate the mean and standard deviation
 
+        avg_df = df.groupby('r').agg({'g_r': 'mean', 'g_r_err': 'std'}).reset_index()
+        avg_df = avg_df.reset_index(drop=True)
+        avg_df['r'] = avg_df['r'].astype(float)
+        avg_df['g_r'] = avg_df['g_r'].astype(float)
+        avg_df['g_r_err'] = avg_df['g_r_err'].astype(float)
         # Moving average
-        window_size = 100
-        moving_avg = pd.Series(g_r).rolling(window=window_size, min_periods=1).mean()
-        g_r = moving_avg.values
-        
-        plt.figure(figsize=(10, 6))
-        plt.plot(r, g_r, label='LAMMPS RDF', linewidth=2,alpha=0.8)
-        
-        plt.xlabel('r (Å)', fontsize=14)
-        plt.ylabel('g(r)', fontsize=14)
-        plt.title('Comparison of RDF', fontsize=16)
-        plt.legend()
-        plt.grid(alpha=0.3)
-        plt.savefig(f"{args.output_dir}/rdf_comparison.png", dpi=300, bbox_inches='tight')
+        window_size = 25
+        avg_df['g_r'] = avg_df['g_r'].rolling(window=window_size, min_periods=1).mean()
+        avg_df['g_r_err'] = avg_df['g_r_err'].rolling(window=window_size, min_periods=1).mean()
 
+        # Plot the LAMMPS RDF
+        plt.figure(figsize=(10, 6))
+        # Plot the average g(r) 
+        plt.plot(avg_df['r'], avg_df['g_r'], linewidth=2, label='LAMMPS RDF', color='darkblue')
+        plt.xlabel('r (Å)', fontdict=axis_fontdict)
+        plt.ylabel('g(r)', fontdict=axis_fontdict)
+        plt.xticks(fontsize=16)
+        plt.yticks(fontsize=16)
+        plt.title('Radial Distribution Function from LAMMPS', fontsize=24, fontweight='bold', color='darkblue')
+        plt.grid(alpha=0.3)
+        plt.legend(fontsize=16)
+        plt.savefig(f"{args.output_dir}/lammps_rdf_plot.png", dpi=300, bbox_inches='tight')
+
+
+
+
+    
 
 if __name__ == "__main__":
     main()

@@ -31,7 +31,7 @@ def main():
     trajectory_file = '/home/bryan/Molecular_Dynamics/Project2/argon1_t_075.xyz'
     traj = Trajectory(trajectory_file, last_n=None, resolution=400) # Load all frames
 
-    atom_index = 2  # Choose the index of the atom you want to track (0-based)
+    atom_index = 1  # Choose the index of the atom you want to track (0-based)
     atom_trajectory = traj.coordinates[:, atom_index, :]
 
     # Plotting each axis    

@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import argparse
 import os
 from scipy.stats import linregress
+from plot_aesthetics import axis_fontdict
 """
 Pick the coordinate of a certain atom and compute the mean squared displacement as a
 #function of time. Then, calculate the diffusion constant for different temperatures and
@@ -49,8 +50,8 @@ def calculate_diffusion_coefficient(position_vector, dt):
     plt.figure(figsize=(8, 6))
     plt.plot(time_array, msd, label='MSD')
     plt.plot(time_array, slope * time_array + intercept, 'r--', label=f'Linear fit (slope = {slope:.4f})')
-    plt.xlabel('Time')
-    plt.ylabel('Mean Squared Displacement')
+    plt.xlabel('Time', fontsize=axis_fontdict['size'])
+    plt.ylabel('Mean Squared Displacement', fontsize=axis_fontdict['size'])
     plt.title('Mean Squared Displacement vs Time')
     plt.legend()
     plt.grid(True)

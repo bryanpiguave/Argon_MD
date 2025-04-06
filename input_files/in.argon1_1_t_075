@@ -22,7 +22,7 @@ timestep			0.00005
 
 # neighorlist 
 neighbor 0.3 bin
-neigh_modify	delay 0 every 5 check no
+neigh_modify	delay 0 every 4 check no
 
 # log output frequency
 thermo			100

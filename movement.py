@@ -5,7 +5,6 @@ from matplotlib.animation import FuncAnimation
 from mpl_toolkits.mplot3d import Axes3D
 
 def update(frame, ax, atom_trajectory):
-    ax.clear()
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
@@ -31,10 +30,10 @@ def main():
     trajectory_file = '/home/bryan/Molecular_Dynamics/Project2/argon1_t_075.xyz'
     traj = Trajectory(trajectory_file, last_n=None, resolution=400) # Load all frames
 
-    atom_index = 1  # Choose the index of the atom you want to track (0-based)
+    atom_index = 5   # Choose the index of the atom you want to track (0-based)
     atom_trajectory = traj.coordinates[:, atom_index, :]
 
-    # Plotting each axis    
+    # Plotting each axis
     plt.figure(figsize=(10, 6))
     plt.plot(atom_trajectory[:, 0], atom_trajectory[:, 1], label='X vs Y', color='blue')
     plt.xlabel('X')
@@ -42,30 +41,30 @@ def main():
     plt.title('X vs Y Trajectory')
     plt.savefig('x_vs_y_trajectory.png')
 
+    # Determine axis limits based on the single atom's trajectory
+    x_min, x_max = np.min(atom_trajectory[:, 0]), np.max(atom_trajectory[:, 0])
+    y_min, y_max = np.min(atom_trajectory[:, 1]), np.max(atom_trajectory[:, 1])
+    z_min, z_max = np.min(atom_trajectory[:, 2]), np.max(atom_trajectory[:, 2])
+
+    ax_xlim = [x_min, x_max]
+    ax_ylim = [y_min, y_max]
+    ax_zlim = [z_min, z_max]
 
 
-    # # Determine axis limits based on the single atom's trajectory
-    # x_min, x_max = np.min(atom_trajectory[:, 0]), np.max(atom_trajectory[:, 0])
-    # y_min, y_max = np.min(atom_trajectory[:, 1]), np.max(atom_trajectory[:, 1])
-    # z_min, z_max = np.min(atom_trajectory[:, 2]), np.max(atom_trajectory[:, 2])
+    # Animation of the trajectory in 3D
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlim(ax_xlim)
+    ax.set_ylim(ax_ylim)
+    ax.set_zlim(ax_zlim)
 
-    # # Add a small buffer to the limits for better visualization
-    # buffer = 1.0
-    # ax_xlim = [x_min - buffer, x_max + buffer]
-    # ax_ylim = [y_min - buffer, y_max + buffer]
-    # ax_zlim = [z_min - buffer, z_max + buffer]
-
-    # # Animation of the trajectory in 3D
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    # ax.set_xlim(ax_xlim)
-    # ax.set_ylim(ax_ylim)
-    # ax.set_zlim(ax_zlim)
-
-    # ani = FuncAnimation(fig, update, frames=traj.n_steps, fargs=(ax, atom_trajectory), interval=200)
-    # # Save the animation
-    # ani.save('single_atom_trajectory.gif', writer='imagemagick', fps=30)
+    ani = FuncAnimation(fig, update, frames=traj.n_steps, fargs=(ax, atom_trajectory), interval=200)
+    # Save the animation
+    ani.save('single_atom_trajectory.gif', writer='imagemagick', fps=30)
     return
+
+if __name__ == "__main__":
+    main()
 
 
 

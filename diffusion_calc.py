@@ -12,7 +12,6 @@ Pick the coordinate of a certain atom and compute the mean squared displacement 
 """
 parser = argparse.ArgumentParser(description='Calculate diffusion constant from MSD.')
 parser.add_argument('--filename', type=str, help='Path to the trajectory file', default='/home/bryan/Molecular_Dynamics/Project2/argon09_t_075.xyz')
-parser.add_argument('--skip', type=int, default=100, help='Number of snapshots to skip')
 args = parser.parse_args()
 
 def calculate_diffusion_coefficient(position_vector, dt):
@@ -40,40 +39,47 @@ def calculate_diffusion_coefficient(position_vector, dt):
     msd = squared_displacements[1:]
 
     if len(time_array) < 2:
-        return 0.0
+        raise ValueError('array smaller than 2')
 
     # Perform a linear fit of MSD vs time
     slope, intercept, r_value, p_value, std_err = linregress(time_array, msd)
+    print('Slope',slope)
     diffusion_coefficient = slope / 6.0
 
     # Optional: Plot MSD vs Time
     plt.figure(figsize=(8, 6))
     plt.plot(time_array, msd, label='MSD')
-    plt.plot(time_array, slope * time_array + intercept, 'r--', label=f'Linear fit (slope = {slope:.4f})')
-    plt.xlabel('Time', fontsize=axis_fontdict['size'])
-    plt.ylabel('Mean Squared Displacement', fontsize=axis_fontdict['size'])
+    
+    plt.xlabel('Time', fontdict=axis_fontdict)
+    plt.ylabel('Mean Squared Displacement', fontdict=axis_fontdict)
     plt.title('Mean Squared Displacement vs Time')
     plt.legend()
     plt.grid(True)
-    plt.show()
+    plt.savefig('diffusion.png')
 
     return diffusion_coefficient
 
-
 def main():
     # Load trajectory
-    traj = Trajectory(args.filename, args.skip)
+    traj = Trajectory(args.filename, last_n=1000)
     print(traj.coordinates.shape)
     # Select the first atom
-    atom_index = 0
-    atom_positions = traj.coordinates[:, atom_index, :]
+    atom_index = 4
+    wrapped_atom_positions = traj.coordinates[:, atom_index, :]
+    n_steps = wrapped_atom_positions.shape[0]
+
+    # Get box dimensions (assuming traj.box_lengths exists and is correct)
+    box_lengths = (6.665, 6.665, 6.665) # Assuming box size is constant
+
+    
+
     # Calculate the time step
-    dt = 0.00005  # Example time step in ps
-    # Calculate the diffusion coefficient
-    diffusion_constant = calculate_diffusion_coefficient(atom_positions, dt)
+    dt = 0.00005   # Example time step in ps
+    # Calculate the diffusion coefficient using the unwrapped trajectory
+    diffusion_constant = calculate_diffusion_coefficient(unwrapped_atom_positions, dt)
 
     # Print the diffusion constant in angstrom^2/ps
-    print(f"Diffusion constant: {diffusion_constant:.4f} Å^2/ps")
+    print(f"Diffusion constant: {diffusion_constant} Å^2/ps")
 
 if __name__ == "__main__":
     main()

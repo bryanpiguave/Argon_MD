@@ -1,50 +1,60 @@
 ## Lennard-Jones Argon
 
 # general setup
-units				metal
-atom_style		atomic
-boundary			p p p
+units           metal
+atom_style      atomic
+boundary        p p p
 
 # system setup
-lattice			fcc 6.433
-region			box block 0 4 0 4 0 4
-create_box		1 box
-create_atoms	1 box
-mass				1 39.948
+lattice         fcc 5.397  # New lattice constant
+region          box block 0 4 0 4 0 4 # 4x4x4 unit cells
+create_box      1 box
+create_atoms    1 box
+mass            1 39.948
 
 # potential
-pair_style		lj/cut 8.0
-pair_coeff		1 1 0.010324 3.405
+pair_style      lj/cut 8.0
+pair_coeff      1 1 0.010324 3.405
 
 # initialization
-velocity			all create 80 152586
-timestep			0.00005
+velocity        all create 89 152586
+timestep        0.00002
 
-# neighorlist 
+# neighorlist
 neighbor 0.3 bin
-neigh_modify	delay 0 every 5 check no
+neigh_modify    delay 0 every 5 check no
 
 # log output frequency
-thermo			100
+thermo          100
+
+
+# ------ Equilibration and thermalisation ------
+
+fix             NVT all nvt temp 89.00 89.85 0.010
+run             100000
+unfix           NVT
+
+run 5000
+
+
+# ------ Equilibration in nve ------
+
+fix             NVE all nve
+run             100000
+
 
 # trajectory output
-dump 1 all xyz 700 argon1_t_075.xyz
-#dump_modify 1 unwrap yes
+dump 1 all xyz 10000 argon1_t_075.xyz
 
-# ------ Equilibration and thermalisation ------ 
+# ------ Production in nve ------
 
-fix				NVT all nvt temp 89.00 89.85 0.010
-run				200000
-unfix		  NVT 
+run             100000
 
-# ------ Equilibration in nve ------ 
-
-fix				NVE all nve
-run				50000 
-# ------ Production in nve ------ 
-run       70000
-
-
-compute myRDF all rdf 1000
+compute myRDF all rdf 6000
 fix RDF all ave/time 10 10 100 c_myRDF[*] file argon_rdf.dat mode vector
-run 700
+run 10000
+
+
+compute 1 all msd
+dump msd_dump all custom 100 msd.dat time c_1[*]
+dump_modify msd_dump sort id

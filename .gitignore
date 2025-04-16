@@ -176,3 +176,5 @@ cython_debug/
 *.xyz
 *.png
 out.*
+*.dat
+

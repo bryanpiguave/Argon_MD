@@ -4,7 +4,7 @@ import argparse
 from tqdm import tqdm  # For progress bars
 import pandas as pd
 import numpy as np
-import sys # Used for progress indicator
+from movement import Trajectory 
 from plot_aesthetics import axis_fontdict
 
 
@@ -21,178 +21,6 @@ args = parser.parse_args()
 
 
 
-class Trajectory:
-    """
-    Parses an entire XYZ trajectory file.
-
-    Attributes:
-        filename (str): Path to the XYZ file.
-        n_atoms (int): Number of atoms per frame.
-        atom_list (list): List of atom types/symbols from the first frame.
-        coordinates (np.ndarray): A 3D NumPy array storing the coordinates
-                                   of all steps.
-                                   Shape: (n_steps, n_atoms, 3).
-        n_steps (int): Total number of steps (frames) read and stored from the file.
-        resolution (int): A parameter from the original class (usage not defined here).
-                          Defaults to 700.
-    """
-    def __init__(self, filename, resolution=700):
-        """
-        Initializes the Trajectory object by reading the entire XYZ file.
-
-        Args:
-            filename (str): The path to the XYZ trajectory file.
-            resolution (int, optional): A parameter for potential future use.
-                                        Defaults to 700.
-        """
-        self.filename = filename
-        self.resolution = resolution
-        self.n_atoms = 0
-        self.atom_list = []
-        all_coordinates_list = []
-        step_counter = 0 # Use this for counting steps read
-
-        print(f"Reading trajectory file: {filename}...")
-
-        try:
-            with open(filename, 'r') as f:
-                while True:
-                    # --- Read Header ---
-                    # 1. Read number of atoms (or check for EOF)
-                    line_num_atoms = f.readline()
-                    if not line_num_atoms:
-                        break # End of file reached
-
-                    try:
-                        current_n_atoms = int(line_num_atoms.strip())
-                    except ValueError:
-                        print(f"Warning: Could not parse number of atoms at step {step_counter}. Line: '{line_num_atoms.strip()}'", file=sys.stderr)
-                        # Attempt to skip this potentially corrupted frame
-                        if self.n_atoms > 0: # If we know n_atoms from previous frames
-                            for _ in range(self.n_atoms + 1): # Skip comment + atom lines
-                                f.readline()
-                        else: # If it's the first frame, we can't proceed
-                           raise ValueError("Could not parse n_atoms on the first frame.")
-                        continue # Skip to next potential frame header
-
-                    if self.n_atoms == 0:
-                        self.n_atoms = current_n_atoms # Set n_atoms based on the first frame
-                    elif current_n_atoms != self.n_atoms:
-                        print(f"Warning: Number of atoms changed at step {step_counter} ({current_n_atoms} vs {self.n_atoms}). Using first frame's count.", file=sys.stderr)
-                        # Adapt logic if variable number of atoms is expected/handled differently
-
-                    # 2. Read comment line (and ignore it for now)
-                    f.readline() # Skip the comment/timestep line
-
-                    # --- Read Coordinates for this step ---
-                    # Ensure n_atoms has been set before allocating array
-                    if self.n_atoms <= 0:
-                         raise ValueError("Number of atoms is not positive, cannot read coordinates.")
-
-                    coords_current_step = np.zeros((self.n_atoms, 3), dtype=float)
-                    is_first_step = (step_counter == 0) # Check if it's the very first valid step
-
-                    read_success = True
-                    for i in range(self.n_atoms):
-                        line_atom = f.readline()
-                        if not line_atom:
-                            print(f"Warning: Unexpected end of file while reading coordinates for step {step_counter}.", file=sys.stderr)
-                            read_success = False
-                            break # Exit the inner loop
-
-                        parts = line_atom.split()
-                        try:
-                            if is_first_step:
-                                self.atom_list.append(parts[0]) # Store atom type from first step
-                            # Store coordinates
-                            coords_current_step[i, 0] = float(parts[1]) # x
-                            coords_current_step[i, 1] = float(parts[2]) # y
-                            coords_current_step[i, 2] = float(parts[3]) # z
-                        except (IndexError, ValueError) as e:
-                            print(f"Warning: Error parsing line {i+3} of step {step_counter}: '{line_atom.strip()}'. Error: {e}", file=sys.stderr)
-                            read_success = False
-                            # Option: Fill with NaN or skip frame? For now, mark as failed.
-                            coords_current_step[i, :] = np.nan
-                             # If atom list wasn't filled yet during the first step, add a placeholder
-                            if is_first_step and len(self.atom_list) <= i:
-                                self.atom_list.append("?")
-
-
-                    if read_success:
-                        all_coordinates_list.append(coords_current_step)
-                        step_counter += 1
-                        # Simple progress indicator
-                        if step_counter % 1000 == 0:
-                            print(f"\rRead {step_counter} steps...", end="")
-
-                print(f"\rRead {step_counter} steps... Done.")
-
-
-        except FileNotFoundError:
-            print(f"Error: File not found at {filename}", file=sys.stderr)
-            self.coordinates = np.empty((0, 0, 3))
-            self.n_steps = 0
-            return # Stop initialization
-        except Exception as e:
-            print(f"An error occurred during file reading: {e}", file=sys.stderr)
-            self.coordinates = np.empty((0, 0, 3))
-            self.n_steps = 0
-            return # Stop initialization
-
-
-        # --- Convert the list of coordinates to the final NumPy array ---
-        if not all_coordinates_list:
-            print("Warning: No complete steps were read from the file.", file=sys.stderr)
-            # Ensure n_atoms is somewhat valid before creating the empty array shape
-            atom_dim = self.n_atoms if self.n_atoms > 0 else 0
-            self.coordinates = np.empty((0, atom_dim, 3))
-            self.n_steps = 0
-        else:
-             # Directly convert the whole list
-             self.coordinates = np.array(all_coordinates_list)
-             self.n_steps = len(self.coordinates) # n_steps is the total steps read
-             print(f"Stored all {self.n_steps} steps found.")
-
-    def compute_rdf(self, box_size):
-        print('Box size:', box_size)
-        box_size = np.array(box_size)
-        r_cutoff = min(box_size) / 2.0
-        dr = r_cutoff / self.resolution
-        hist = np.zeros(self.resolution)
-        
-        avg_density = self.n_atoms / np.prod(box_size)
-        
-        for snapshot in tqdm(self.coordinates, desc="Computing RDF", unit="frame"):
-            for i in range(self.n_atoms):
-                for j in range(i + 1, self.n_atoms):
-                    # Minimum image convention
-                    delta = snapshot[j] - snapshot[i]
-                    delta -= box_size * np.round(delta / box_size)
-                    r = np.linalg.norm(delta)
-                    
-                    if r < r_cutoff:
-                        bin_index = int(r / dr)
-                        if bin_index < self.resolution:
-                            hist[bin_index] += 2  # Each pair counts once for i-j and j-i
-        
-        radii = (np.arange(self.resolution) + 0.5) * dr
-        shell_volumes = 4.0 * np.pi * radii**2 * dr
-        N_ideal = avg_density * shell_volumes * self.n_atoms * self.n_steps
-        g_r = hist / N_ideal
-        
-        self.radii = radii
-        self.g_of_r = g_r
-
-
-    def plot_rdf(self, filename=""):
-        plt.figure(figsize=(10, 6))
-        plt.plot(self.radii, self.g_of_r, linewidth=2)
-        plt.xlabel('r (Å)', fontsize=14)
-        plt.ylabel('g(r)', fontsize=14)
-        plt.title('Radial Distribution Function', fontsize=16)
-        plt.grid(alpha=0.3)
-        if filename:
-            plt.savefig(filename, dpi=300, bbox_inches='tight')
 
 def main():
     trajectory = Trajectory(args.filename, args.resolution)
@@ -253,8 +81,6 @@ def main():
         plt.grid(alpha=0.3)
         plt.legend(fontsize=16)
         plt.savefig(f"{args.output_dir}/lammps_rdf_plot.png", dpi=300, bbox_inches='tight')
-
-
 
 
     
